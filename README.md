@@ -25,25 +25,36 @@ For the original documentation, visit the upstream wiki: https://github.com/Deni
 
 # Installation and Package Requirements
 
-Installation is the same as described in the original ezTrack wiki, using a Conda environment, but this fork also requires ffmpeg.
+Installation can be done the same way as described in the original ezTrack wiki, but I recommend using [`uv`](https://docs.astral.sh/uv/). Additionally, this fork requires `ffmpeg`.
 
-1) Download and install Miniconda/Conda with the latest Python version.
+1) Download and install `uv` as described here: https://docs.astral.sh/uv/getting-started/installation/
 
-2) Create the `ezTrack` Conda environment.
-
-- On macOS/Linux, open Terminal. On Windows, open Anaconda Prompt.
-- Run the following command:
-
-```bash
-conda create -y -n ezTrack -c conda-forge \
-  python=3.9.16 jupyter=1.0.0 numpy=1.24 scipy=1.11.1 pandas=2.0.3 \
-  opencv=4.7.0 holoviews=1.15.0 bokeh=2.4.0 pyviz_comms=2.1 \
-  jinja2=3.1.2 scikit-learn=1.3.0 matplotlib=3.7.2 tqdm=4.65.0
-```
-
-3) Download ezTrack files.
+2) Download ezTrack files.
 
 - From GitHub, download and unzip the repository (or clone with `git clone https://github.com/DeniseCaiLab/ezTrack.git`).
+
+3) In the ezTrack directory, use `uv` to create a virtual environment with Python 3.9 and the required packages.
+
+Create the virtual environment:
+```bash
+uv python install 3.9
+uv venv --python 3.9 ez_venv
+```
+
+Then, activate it. On Linux or Mac:
+```bash
+source ez_venv/bin/activate
+```
+
+OR on Windows, in PowerShell:
+```powershell
+ez_venv\Scripts\activate
+```
+
+And install all required packages:
+```bash
+uv pip install -r requirements.txt
+```
 
 4) Install FFmpeg (Required for this fork)
 
@@ -71,6 +82,13 @@ This fork uses `ffmpeg` for faster frame extraction. It must be installed and av
   ```powershell
   winget install ffmpeg
   ```
+
+5) To start, activate the environment and start up Jupyter Lab:
+
+```bash
+source ez_venv/bin/activate
+jupyter lab
+```
 
 **Uninstalling ezTrack**
 
