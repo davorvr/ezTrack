@@ -1889,10 +1889,14 @@ def ROI_plot(video_dict, arena_only=False, clear_history=False):
         nobjects = len(video_dict["region_names"]) if video_dict["region_names"] else 0
         title = "Draw Regions: "+", ".join(video_dict["region_names"])
 
+    #### Make reference image the base image on which to draw
+    ## cropframe only applies the crop
     #baseframe = cropframe(video_dict["f0"], video_dict["crop"])
+    ## process_frame applies all transformations
     # baseframe = process_frame(video_dict["f0"], video_dict)
+    ## this just uses the first frame without any processing
     baseframe = video_dict["f0"]
-    #Make reference image the base image on which to draw
+    
     image = hv.Image((
         np.arange(baseframe.shape[1]),
         np.arange(baseframe.shape[0]),
