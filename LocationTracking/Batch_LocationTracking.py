@@ -35,12 +35,18 @@ def process_video_file(video_dict):
 
     video_dict["fps"] = int(cap.get(cv2.CAP_PROP_FPS))
     video_dict["start"] = int(video_dict["start_s"]*video_dict["fps"])
+    video_dict["first_frame"] = video_dict["start"]
     video_dict["bin_duration"] = int(video_dict["bin_duration_s"]*video_dict["fps"])
     video_dict["vid_duration"] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     video_dict["end"] = int(video_dict["end_s"]*video_dict["fps"]) if video_dict["end_s"] is not None else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-1
-    if video_dict["start"] < 0:
+    if video_dict["start_s"] and video_dict["start_s"] < 0:
         video_dict["start"] += video_dict["vid_duration"]
         video_dict["start_s"] += video_dict["vid_duration"]/video_dict["fps"]
+    if video_dict["end_s"] and video_dict["end_s"] < 0:
+        video_dict["end"] += video_dict["vid_duration"]
+        video_dict["end_s"] += video_dict["vid_duration"]/video_dict["fps"]
+    if video_dict["start"] > video_dict["end"]:
+        raise ValueError('ERROR: The specified start point is after the end point, please check video_dict["start_s"] and video_dict["end_s"]')
 
     video_dict["fname_stem"] = Path(video_dict["file"]).stem
     video_dict["output_path"] = video_dict["dpath"]/video_dict["fname_stem"]
@@ -73,11 +79,17 @@ def process_video_file(video_dict):
     #layout = create_layout(img_ref)
     #layout
 
+
     viewpane_dimensions = {"x": abs(video_dict["crop"].data["x1"][0]-video_dict["crop"].data["x0"][0]),
                            "y": abs(video_dict["crop"].data["y1"][0]-video_dict["crop"].data["y0"][0])}
     max_x = viewpane_dimensions["x"]
     max_y = viewpane_dimensions["y"]
-    if video_dict["region_names"] == "OF":
+    if "region_template" in video_dict:
+        if video_dict["region_template"] not in ("OF", "EPM", "MWM"):
+            raise ValueError(f'Unknown region template specified: {video_dict["region_template"]}')
+    else:
+        video_dict["region_template"] = None
+    if video_dict["region_template"] == "OF":
         roi_size = video_dict["OF_preset_config"]["wall_fraction"]
         roi_width = roi_size*viewpane_dimensions["x"]
         roi_height = roi_size*viewpane_dimensions["y"]
@@ -104,6 +116,7 @@ def process_video_file(video_dict):
                                 "ys": [max_y, max_y, max_y-roi_height, max_y-roi_height]},
                 "center" : {"xs": [roi_width, max_x-roi_width, max_x-roi_width, roi_width],
                             "ys": [roi_height, roi_height, max_y-roi_height, max_y-roi_height]} }
+        video_dict["region_names"] = list(rois.keys())
         rois_poly = []
         for roi, coords in rois.items():
             rois_poly.append({("x", "y"):list(zip(coords["xs"], coords["ys"]))})
@@ -114,7 +127,7 @@ def process_video_file(video_dict):
                     "ys": [d["ys"] for d in rois.values()]}
 
         video_dict["roi_stream"] = lt.DataStub(roi_data)
-    elif video_dict["region_names"] == "EPM":
+    elif video_dict["region_template"] == "EPM":
         centre_x = viewpane_dimensions["x"]/2+video_dict["EPM_preset_config"]["centre_offset_x"]
         centre_y = viewpane_dimensions["y"]/2+video_dict["EPM_preset_config"]["centre_offset_y"]
         roi_halfwidth = video_dict["EPM_preset_config"]["vertical_arm_width_frac"]*viewpane_dimensions["x"]/2
@@ -131,6 +144,7 @@ def process_video_file(video_dict):
                 "center" : {"xs": [centre_x-roi_halfwidth, centre_x-roi_halfwidth, centre_x+roi_halfwidth, centre_x+roi_halfwidth],
                             "ys": [centre_y-roi_halfheight, centre_y+roi_halfheight, centre_y+roi_halfheight, centre_y-roi_halfheight]}
         }
+        video_dict["region_names"] = list(rois.keys())
         mask = { "UL" : {"xs": [0, centre_x-roi_halfwidth, centre_x-roi_halfwidth, 0],
                         "ys": [0, 0, centre_y-roi_halfheight, centre_y-roi_halfheight]},
                 "UR" : {"xs": [max_x, centre_x+roi_halfwidth, centre_x+roi_halfwidth, max_x],
@@ -162,6 +176,85 @@ def process_video_file(video_dict):
         mask_bool = mask_bool.astype("bool")
         video_dict["mask"] = {
             "stream": lt.DataStub(mask_data),
+            "mask": mask_bool
+        }
+    elif video_dict["region_template"] == "MWM":
+        centre_x = viewpane_dimensions["x"] / 2 + video_dict["MWM_preset_config"].get("centre_offset_x", 0)
+        centre_y = viewpane_dimensions["y"] / 2 + video_dict["MWM_preset_config"].get("centre_offset_y", 0)
+        a = viewpane_dimensions["x"] / 2  # semi-axis x
+        b = viewpane_dimensions["y"] / 2  # semi-axis y
+
+        # Rotation of the quadrant cross (in degrees), converted to radians
+        rotation_deg = video_dict["MWM_preset_config"].get("quadrant_rotation_deg", 0)
+        rotation_rad = np.deg2rad(rotation_deg)
+
+        n_arc = 64  # points per quadrant arc
+
+        def ellipse_quadrant_poly(theta_start, theta_end, cx, cy, semi_a, semi_b, n=64):
+            """Generate polygon vertices for one ellipse quadrant (pie slice).
+            
+            Angles are in radians, 0 = rightward, positive = counterclockwise.
+            In image coordinates (y-down), counterclockwise visually appears clockwise.
+            """
+            thetas = np.linspace(theta_start, theta_end, n)
+            xs = cx + semi_a * np.cos(thetas)
+            ys = cy + semi_b * np.sin(thetas)
+            # Close through center to form pie wedge
+            xs = np.append(xs, cx)
+            ys = np.append(ys, cy)
+            return {"xs": xs.tolist(), "ys": ys.tolist()}
+
+        # Quadrant boundaries rotate with rotation_rad offset
+        # In image coords (y-down): angle 0 = right, pi/2 = down, pi = left, 3pi/2 = up
+        # So with rotation=0: NE is top-right, SE is bottom-right, etc.
+        quad_angles = {
+            "NE": (-np.pi/2 + rotation_rad,  0         + rotation_rad),
+            "SE": (0         + rotation_rad,  np.pi/2   + rotation_rad),
+            "SW": (np.pi/2   + rotation_rad,  np.pi     + rotation_rad),
+            "NW": (np.pi     + rotation_rad,  3*np.pi/2 + rotation_rad),
+        }
+        video_dict["region_names"] = list(quad_angles.keys())
+
+        rois = {}
+        for quad_name, (t_start, t_end) in quad_angles.items():
+            rois[quad_name] = ellipse_quadrant_poly(
+                t_start, t_end, centre_x, centre_y, a, b, n_arc
+            )
+
+        # Optional: platform zone as a small circular ROI
+        if (      
+        "use_platform" in video_dict["MWM_preset_config"] and
+        video_dict["MWM_preset_config"]["use_platform"] and
+        "platform_x" in video_dict["MWM_preset_config"] and
+        "platform_y" in video_dict["MWM_preset_config"]
+        ):
+            video_dict["region_names"].append("platform")
+            plat_x = video_dict["MWM_preset_config"]["platform_x"]
+            plat_y = video_dict["MWM_preset_config"]["platform_y"]
+            plat_r = video_dict["MWM_preset_config"].get("platform_radius", 15)  # pixels
+            plat_thetas = np.linspace(0, 2*np.pi, n_arc)
+            rois["platform"] = {
+                "xs": (plat_x + plat_r * np.cos(plat_thetas)).tolist(),
+                "ys": (plat_y + plat_r * np.sin(plat_thetas)).tolist(),
+            }
+
+        roi_data = {"xs": [d["xs"] for d in rois.values()],
+                    "ys": [d["ys"] for d in rois.values()]}
+        video_dict["roi_stream"] = lt.DataStub(roi_data)
+
+        # Ellipse mask: everything outside the ellipse is masked
+        mask_bool = np.zeros(video_dict["f0"].shape, dtype=np.uint8)
+        # Draw filled ellipse (interior = 0, exterior = 1 for masking)
+        # cv2.ellipse expects (center), (axes), angle, startAngle, endAngle, color, thickness
+        cv2.ellipse(
+            mask_bool,
+            (int(centre_x), int(centre_y)),
+            (int(a), int(b)),
+            0, 0, 360, color=1, thickness=-1  # filled
+        )
+        mask_bool = ~mask_bool.astype("bool")  # invert: True = masked (outside pool)
+        video_dict["mask"] = {
+            "stream": lt.DataStub(roi_data),  # reuse roi polygons for overlay
             "mask": mask_bool
         }
 
