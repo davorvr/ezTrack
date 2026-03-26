@@ -103,8 +103,9 @@ This fork introduces several major enhancements to the Location Tracking module,
 
 #### Programmatic ROI Presets
 Instead of manually drawing ROIs, this fork supports defining ROIs programmatically in `Batch_LocationTracking.py`.
-- **Open Field (OF):** Automatically define walls, corners, and center based on a `wall_fraction`.
+- **Open Field (OF):** Automatically define walls, corners, and center based on a `wall_fraction` (rectangular arena)
 - **Elevated Plus Maze (EPM):** Automatically define open/closed arms and center based on arm width/height fractions.
+- **Morris Water Maze (MWM):** Automatically define an ellipse with four quadrants and a platform (circular arena).
 This ensures consistent ROI definitions across all videos in a study.
 
 #### Saving and Reloading Configurations
