@@ -282,9 +282,10 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
     #Set first frame
     cap.set(cv2.CAP_PROP_POS_FRAMES, video_dict["start"])
     ret, frame = cap.read()
-    frame = process_frame(frame, video_dict)
-    video_dict["f0_original"] = video_dict["f0"].copy()
+    frame = process_frame(frame, video_dict, do_crop = False)
+    # if "f0" in video_dict and video_dict["f0"]:
     video_dict["f0"] = frame
+    video_dict["f0_original"] = video_dict["f0"].copy()
     cap.release()
 
     #Make first image reference frame on which cropping can be performed
@@ -310,7 +311,9 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
         if (
             ("crop" in video_dict) and
             isinstance(video_dict["crop"], DataStub) and
-            (video_dict["crop"].data.get("xs", None) or video_dict["crop"].data.get("x", None)) and
+            (video_dict["crop"].data.get("xs", None) or
+             video_dict["crop"].data.get("x", None) or
+             video_dict["crop"].data.get("x0", None)) and
             (not clear_history)
         ):
             initial_data = video_dict["crop"].data
