@@ -318,7 +318,7 @@ def process_video_file(video_dict):
         height=heatmap_h,width=heatmap_w,color='red',title="Distance Across Session",toolbar="below")
     plt_trks = lt.showtrace(video_dict, location, color="red", alpha=.05, size=2)
     # plt_trks.opts(width=int(w*scale), height=int(h*scale))
-    plt_hmap = lt.Heatmap(video_dict, location, sigma=sigma)
+    plt_hmap = lt.Heatmap(video_dict, location, sigma=sigma_heatmap)
     # plt_hmap.opts(width=int(w*scale), height=int(h*scale))
     trace_img = (plt_trks + plt_hmap + plt_dist).cols(1)
     hv.save(trace_img, video_dict["output_path"]/str(video_dict["fname_stem"]+"_TraceAndHeatmap.png"), fmt='png')
