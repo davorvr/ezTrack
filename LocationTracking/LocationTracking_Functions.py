@@ -283,6 +283,7 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
     cap.set(cv2.CAP_PROP_POS_FRAMES, video_dict["start"])
     ret, frame = cap.read()
     frame = process_frame(frame, video_dict)
+    video_dict["f0_original"] = video_dict["f0"].copy()
     video_dict["f0"] = frame
     cap.release()
 
@@ -2659,7 +2660,7 @@ def SaveVideo(video_dict,save_dict,location):
     frame = process_frame(frame, video_dict)
     height, width = int(frame.shape[0]), int(frame.shape[1])
     #fourcc = 0#cv2.VideoWriter_fourcc(*"jpeg") #only writes up to 20 fps, though video read can be 30.
-    fourcc = cv2.VideoWriter_fourcc(*"X264")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(video_dict["output_path"].resolve()/save_dict["file"]),
                              fourcc, save_dict["fps"],
                              (width, height),
