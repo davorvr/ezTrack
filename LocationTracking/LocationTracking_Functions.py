@@ -303,7 +303,12 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
     #Create polygon element on which to draw and connect via stream to poly drawing tool
     if cropmethod==None:
         image.opts(title="First Frame")
-        video_dict["crop"] = None
+        video_dict["crop"] = DataStub(data = {"xs": [None],
+                                               "ys": [None],
+                                               "x0": [0],
+                                               "x1": [frame.shape[1]],
+                                               "y0": [frame.shape[0]],
+                                               "y1": [0]})
         return image, None, video_dict
 
     if cropmethod=="Box":
