@@ -30,7 +30,10 @@ def process_video_file(video_dict):
             video_dict.update(video_dict_override)
     except NameError:
         pass
+    ## CODE ##
     video_dict["fpath"] = video_dict["dpath"]/video_dict["file"]
+    if not video_dict["fpath"].exists():
+        raise FileNotFoundError("Video file not found!")
     cap = cv2.VideoCapture(str(video_dict["fpath"]))
 
     video_dict["fps"] = int(cap.get(cv2.CAP_PROP_FPS))
@@ -38,7 +41,7 @@ def process_video_file(video_dict):
     video_dict["first_frame"] = video_dict["start"]
     video_dict["bin_duration"] = int(video_dict["bin_duration_s"]*video_dict["fps"])
     video_dict["vid_duration"] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_dict["end"] = int(video_dict["end_s"]*video_dict["fps"]) if video_dict["end_s"] is not None else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))-1
+    video_dict["end"] = int(video_dict["end_s"]*video_dict["fps"]) if video_dict["end_s"] is not None else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if video_dict["start_s"] and video_dict["start_s"] < 0:
         video_dict["start"] += video_dict["vid_duration"]
         video_dict["start_s"] += video_dict["vid_duration"]/video_dict["fps"]
@@ -67,21 +70,30 @@ def process_video_file(video_dict):
     frame = lt.process_frame(frame, video_dict,
                              do_gray = True, do_angle = True, do_dsmpl = True, do_crop = True)
     video_dict["f0"] = frame
+    cap.release()
 
     #%%output size = 300
     ### NE ZABORAVI ME UPALITI KASNIJE
     #video_dict['reference'], img_ref = lt.Reference(video_dict, num_frames=50)
     #video_dict['reference'], img_ref = lt.Reference(video_dict, frames=np.arange(100,2000,10))
-    #video_dict['reference'], img_ref = lt.Reference(video_dict, segment=(200,1000))
+    if recalculate_reference:
+        if reference_type == "num_frames":
+            video_dict['reference'], img_ref = lt.Reference(video_dict, num_frames=reference_spec)
+        elif reference_type == "frames":
+            video_dict['reference'], img_ref = lt.Reference(video_dict, frames=reference_spec)
+        elif reference_type == "segment":
+            video_dict['reference'], img_ref = lt.Reference(video_dict, segment=reference_spec)
+        else:
+            video_dict['reference'], img_ref = lt.Reference(video_dict, num_frames=50)
 
     # hv.save(img_ref, video_dict["output_path"]/str(video_dict["fname_stem"]+"_reference.png"), fmt='png')
 
     #layout = create_layout(img_ref)
     #layout
 
-
+    ## CODE ##
     viewpane_dimensions = {"x": abs(video_dict["crop"].data["x1"][0]-video_dict["crop"].data["x0"][0]),
-                           "y": abs(video_dict["crop"].data["y1"][0]-video_dict["crop"].data["y0"][0])}
+                        "y": abs(video_dict["crop"].data["y1"][0]-video_dict["crop"].data["y0"][0])}
     max_x = viewpane_dimensions["x"]
     max_y = viewpane_dimensions["y"]
     if "region_template" in video_dict:
@@ -90,12 +102,12 @@ def process_video_file(video_dict):
     else:
         video_dict["region_template"] = None
     if video_dict["region_template"] == "OF":
-        roi_size = video_dict["OF_preset_config"]["wall_fraction"]
+        roi_size = OF_preset_config["wall_fraction"]
         roi_width = roi_size*viewpane_dimensions["x"]
         roi_height = roi_size*viewpane_dimensions["y"]
-        if video_dict["OF_preset_config"]["calculate_against"] == "height":
+        if OF_preset_config["calculate_against"] == "height":
             roi_width = roi_height
-        elif video_dict["OF_preset_config"]["calculate_against"] == "width":
+        elif OF_preset_config["calculate_against"] == "width":
             roi_height = roi_width
         #['wall_L','wall_R','wall_T','wall_B', 'corner_UL', 'corner_UR', 'corner_BL', 'corner_BR', 'center'],
         rois = { "wall_L" : {"xs": [0, 0, roi_width, roi_width],
@@ -128,10 +140,10 @@ def process_video_file(video_dict):
 
         video_dict["roi_stream"] = lt.DataStub(roi_data)
     elif video_dict["region_template"] == "EPM":
-        centre_x = viewpane_dimensions["x"]/2+video_dict["EPM_preset_config"]["centre_offset_x"]
-        centre_y = viewpane_dimensions["y"]/2+video_dict["EPM_preset_config"]["centre_offset_y"]
-        roi_halfwidth = video_dict["EPM_preset_config"]["vertical_arm_width_frac"]*viewpane_dimensions["x"]/2
-        roi_halfheight = video_dict["EPM_preset_config"]["horizontal_arm_height_frac"]*viewpane_dimensions["y"]/2
+        centre_x = viewpane_dimensions["x"]/2+EPM_preset_config["centre_offset_x"]
+        centre_y = viewpane_dimensions["y"]/2+EPM_preset_config["centre_offset_y"]
+        roi_halfwidth = EPM_preset_config["vertical_arm_width_frac"]*viewpane_dimensions["x"]/2
+        roi_halfheight = EPM_preset_config["horizontal_arm_height_frac"]*viewpane_dimensions["y"]/2
         #['open_T', 'open_B', 'closed_L', 'closed_R', 'center']
         rois = { "open_T" : {"xs": [centre_x-roi_halfwidth, centre_x-roi_halfwidth, centre_x+roi_halfwidth, centre_x+roi_halfwidth],
                             "ys": [0, centre_y-roi_halfheight, centre_y-roi_halfheight, 0]},
@@ -179,13 +191,14 @@ def process_video_file(video_dict):
             "mask": mask_bool
         }
     elif video_dict["region_template"] == "MWM":
-        centre_x = viewpane_dimensions["x"] / 2 + video_dict["MWM_preset_config"].get("centre_offset_x", 0)
-        centre_y = viewpane_dimensions["y"] / 2 + video_dict["MWM_preset_config"].get("centre_offset_y", 0)
-        a = viewpane_dimensions["x"] / 2  # semi-axis x
-        b = viewpane_dimensions["y"] / 2  # semi-axis y
+        centre_x = viewpane_dimensions["x"] / 2 + MWM_preset_config.get("centre_offset_x", 0)
+        centre_y = viewpane_dimensions["y"] / 2 + MWM_preset_config.get("centre_offset_y", 0)
+        smallest_axis = min(viewpane_dimensions["x"], viewpane_dimensions["y"])
+        a = (smallest_axis+MWM_preset_config.get("semiaxis_x_offset", 0)) / 2  # semi-axis x
+        b = (smallest_axis+MWM_preset_config.get("semiaxis_y_offset", 0)) / 2  # semi-axis y
 
         # Rotation of the quadrant cross (in degrees), converted to radians
-        rotation_deg = video_dict["MWM_preset_config"].get("quadrant_rotation_deg", 0)
+        rotation_deg = MWM_preset_config.get("quadrant_rotation_deg", 0)
         rotation_rad = np.deg2rad(rotation_deg)
 
         n_arc = 64  # points per quadrant arc
@@ -223,15 +236,15 @@ def process_video_file(video_dict):
 
         # Optional: platform zone as a small circular ROI
         if (      
-        "use_platform" in video_dict["MWM_preset_config"] and
-        video_dict["MWM_preset_config"]["use_platform"] and
-        "platform_x" in video_dict["MWM_preset_config"] and
-        "platform_y" in video_dict["MWM_preset_config"]
+        "use_platform" in MWM_preset_config and
+        MWM_preset_config["use_platform"] and
+        "platform_x" in MWM_preset_config and
+        "platform_y" in MWM_preset_config
         ):
             video_dict["region_names"].append("platform")
-            plat_x = video_dict["MWM_preset_config"]["platform_x"]
-            plat_y = video_dict["MWM_preset_config"]["platform_y"]
-            plat_r = video_dict["MWM_preset_config"].get("platform_radius", 15)  # pixels
+            plat_x = viewpane_dimensions["x"] / 2 + MWM_preset_config.get("platform_x_offset", 0)
+            plat_y = viewpane_dimensions["y"] / 2 + MWM_preset_config.get("platform_y_offset", 0)
+            plat_r = MWM_preset_config.get("platform_radius", 15)  # pixels
             plat_thetas = np.linspace(0, 2*np.pi, n_arc)
             rois["platform"] = {
                 "xs": (plat_x + plat_r * np.cos(plat_thetas)).tolist(),
@@ -349,7 +362,7 @@ def process_video_file(video_dict):
     if save_video:
         display_dict = {
             'start'      : 0,
-            'stop'       : video_dict["last_frame"]-video_dict["start"],
+            'stop'       : video_dict["last_frame"],
             'fps'        : video_dict["fps"],
             'resize'     : None,
             'file'       : video_dict["fname_stem"]+"_tracked.mkv"
@@ -411,12 +424,19 @@ if __name__ == "__main__":
             #'file'          : video_filename.name,
             'start_s'       : -600,
             'end_s'         : None,
-            'region_names'  : ['wall_L','wall_R','wall_T','wall_B', 'corner_UL', 'corner_UR', 'corner_BL', 'corner_BR', 'center'],
+            #'region_names'  : ['wall_L','wall_R','wall_T','wall_B', 'corner_UL', 'corner_UR', 'corner_BL', 'corner_BR', 'center'],
             'dsmpl'         : 0.5,
             'stretch'       : dict(width=3, height=3),
-            'bin_duration_s': 60,
+            'bin_duration_s': 10,
             'angle'         : None
         }
+    
+    # Whether to recalculate the reference frame (used for tracking) or to load it from the video_dict. If True, specify the method of calculation and its parameters in `reference_type` and `reference_spec`.
+    # Options are as in the `LocationTracking_single.ipynb` notebook.
+    recalculate_reference = True
+    reference_type = "segment" # options: "num_frames", "frames", "segment"
+    reference_spec = (2000,2500)
+
     # Dictionary specifying the pixel-to-cm scale calculation. Specify a `px_distance`
     # in pixels, and its corresponding length in centimetres. If not specified, as:
     #     scale_override = None
@@ -446,6 +466,8 @@ if __name__ == "__main__":
     }
     # Whether to save the output video with tracking overlay
     save_video = True
+    # Since display parameters depend on the video properties, they need to be changed
+    # inside the processing function (located at the very end).
 
     #### END CONFIGURATION ####
     
