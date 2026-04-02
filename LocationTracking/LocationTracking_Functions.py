@@ -309,7 +309,7 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
                                                "x1": [frame.shape[1]],
                                                "y0": [frame.shape[0]],
                                                "y1": [0]})
-        return image, None, video_dict
+        return image, deepcopy(video_dict["crop"]), video_dict
 
     if cropmethod=="Box":
         poly_dicts = []
