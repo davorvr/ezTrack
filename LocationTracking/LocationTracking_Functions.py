@@ -129,7 +129,7 @@ def process_frame(frame, video_dict,
         frame = cropframe(frame, video_dict.get("crop"))
     return frame
 
-def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,clear_history=False):
+def LoadAndCrop(video_dict,cropmethod=None,return_image=True,fstfile=False,accept_p_frames=False,clear_history=False):
     """
     -------------------------------------------------------------------------------------
 
@@ -189,6 +189,11 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
                 None : No cropping
                 "Box" : Create box selection tool for cropping video
 
+        return_image:: [bool]
+            Whether to return a HoloViews image or `None` as the first return parameter. Only
+            used if cropmethod is `None`. Useful to avoid using HoloViews when running in a
+            batch script.
+
         fstfile:: [bool]
             Dictates whether to use first file in video_dict["FileNames"] to generate
             reference.  True/False
@@ -199,7 +204,7 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
 
     -------------------------------------------------------------------------------------
     Returns:
-        image:: [holoviews.Image]
+        image:: [None | holoviews.Image]
             Holoviews hv.Image displaying first frame
 
         video_dict:: [dict]
@@ -289,27 +294,31 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False,c
     cap.release()
 
     #Make first image reference frame on which cropping can be performed
-    image = hv.Image((np.arange(frame.shape[1]), np.arange(frame.shape[0]), frame))
-    image.opts(
-        width=int(frame.shape[1]*video_dict["stretch"]["width"]),
-        height=int(frame.shape[0]*video_dict["stretch"]["height"]),
-        invert_yaxis=True,
-        cmap="gray",
-        colorbar=True,
-        toolbar="below",
-        title="First Frame.  Crop if Desired"
-    )
+    if not cropmethod and not return_image:
+        image = hv.Image((np.arange(frame.shape[1]), np.arange(frame.shape[0]), frame))
+        image.opts(
+            width=int(frame.shape[1]*video_dict["stretch"]["width"]),
+            height=int(frame.shape[0]*video_dict["stretch"]["height"]),
+            invert_yaxis=True,
+            cmap="gray",
+            colorbar=True,
+            toolbar="below",
+            title="First Frame.  Crop if Desired"
+        )
 
     #Create polygon element on which to draw and connect via stream to poly drawing tool
-    if cropmethod==None:
-        image.opts(title="First Frame")
+    if not cropmethod:
         video_dict["crop"] = DataStub(data = {"xs": [None],
                                                "ys": [None],
                                                "x0": [0],
                                                "x1": [frame.shape[1]],
                                                "y0": [frame.shape[0]],
                                                "y1": [0]})
-        return image, deepcopy(video_dict["crop"]), video_dict
+        if return_image:
+            image.opts(title="First Frame")
+            return image, deepcopy(video_dict["crop"]), video_dict
+        else:
+            return None, deepcopy(video_dict["crop"]), video_dict
 
     if cropmethod=="Box":
         poly_dicts = []
