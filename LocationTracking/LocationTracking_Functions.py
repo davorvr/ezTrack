@@ -2688,7 +2688,9 @@ def SaveVideo(video_dict,save_dict,location):
 
     #Play Video
     t_start = datetime.datetime.now()
-    for f in range(save_dict["start"],save_dict["stop"]):
+    if len(location) < save_dict["stop"]:
+        print(f'Warning: location dataframe has fewer frames ({len(location)}) than requested stop frame ({save_dict["stop"]}). Will attempt to save up to frame {len(location)} instead.')
+    for f in range(save_dict["start"],min(len(location), save_dict["stop"])):
         ret, frame = cap.read() #read frame
         if ret == True:
             frame = process_frame(frame, video_dict)
@@ -2697,7 +2699,7 @@ def SaveVideo(video_dict,save_dict,location):
             #display_image(frame,display_dict["fps"],display_dict["resize"])
             writer.write(frame)
         if ret == False:
-            print("warning. failed to get video frame")
+            print(f'Warning: Failed to get video frame {video_dict["start"]+save_dict["start"]+f}!')
 
     #Close video window and video writer if open
     print(datetime.datetime.now()-t_start)
